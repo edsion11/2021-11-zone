@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Zones Profiling</title>
+    <script>
+        __Zone_disable_Error = true;
+        __Zone_disable_on_property = true;
+        __Zone_disable_geolocation = true;
+        __Zone_disable_toString = true;
+        __Zone_disable_blocking = true;
+        __Zone_disable_PromiseRejectionEvent = true;
+    </script>
+    <style>
+        body {
+            padding: 50px;
+            font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+        }
+
+        a {
+            color: #00B7FF;
+        }
+    </style>
+    <script src="node_modules/zone.js/dist/zone.js"></script>
+    <script src="node_modules/zone.js/dist/long-stack-trace-zone.js"></script>
+</head>
+<body>
+
+<h1>Profiling with Zones</h1>
+
+<button id="b1">Start Profiling</button>
+
+<script>
+    function sortCompute() {
+        //
+        function sortAndPrintArray() {
+            profilingZoneSpec.reset();
+            var unsortedArray = new Array(12000000).fill(0).map(s => Math.floor(s + Math.random() * 10000));
+            asyncBogosort(unsortedArray, function (sortedArray) {
+                console.log(sortedArray);
+                console.log('sorting took ' + profilingZoneSpec.time() + ' of CPU time');
+            });
+        }
+
+        function asyncBogosort(arr, cb) {
+            setTimeout(function () {
+                if (isSorted(arr)) {
+                    cb(arr);
+                } else {
+                    var newArr = arr.slice();
+                    newArr.sort((a, b) => a - b);
+                    asyncBogosort(newArr, cb);
+                }
+            });
+        }
+
+        function isSorted(things) {
+            for (var i = 1; i < things.length; i += 1) {
+                if (things[i] < things[i - 1]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function main() {
+            b1.addEventListener('click', function () {
+                sortAndPrintArray();
+            });
+        }
+
+        var profilingZoneSpec = (function () {
+            var time = 0,
+                // use the high-res timer if available
+                timer = performance ?
+                    performance.now.bind(performance) :
+                    Date.now.bind(Date);
+            return {
+                onInvokeTask: function (delegate, current, target, task, applyThis, applyArgs) {
+                    this.start = timer();
+                    delegate.invokeTask(target, task, applyThis, applyArgs); // 执行任务
+                    time += timer() - this.start;
+                },
+                time: function () {
+                    return Math.floor(time * 100) / 100 + 'ms';
+                },
+                reset: function () {
+                    time = 0;
+                }
+            };
+        }());
+
+
+        /*
+         * Bootstrap the app
+         */
+        Zone.current.fork(profilingZoneSpec).run(main);
+    }
+
+    sortCompute();
+
+    function extracted() {
+        const executeTimeZoneSpec = {
+            name: 'executeTimeZone',
+            onScheduleTask: function (parentZoneDelegate, currentZone, targetZone, task) {
+                console.time('scheduleTask')
+                return parentZoneDelegate.scheduleTask(targetZone, task);
+            },
+            onInvokeTask: function (parentzone, currentZone, targetZone, task, applyThis, applyArgs) {
+                console.time('callback')
+                parentzone.invokeTask(targetZone, task, applyThis, applyArgs);
+                console.timeEnd('callback')
+                console.timeEnd('scheduleTask')
+            }
+        }
+
+        Zone.current.fork(executeTimeZoneSpec).run(() => {
+            setTimeout(function () {
+                console.log('start callback...')
+                for (let i = 0; i < 100; i++) {
+                    console.log(i)
+                }
+            }, 1000);
+        });
+    }
+
+    // extracted();
+
+
+</script>
+
+</body>
+</html>

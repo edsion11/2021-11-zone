@@ -1,50 +1,9 @@
 import './node_modules/zone.js/dist/zone.js'
 import './node_modules/incremental-dom/dist/incremental-dom.js'
 
-// const original = window.setTimeout
-//
-// window.setTimeout = (callback, delay, ...args)=>{
-//     return callback.apply(this, [callback, delay, ...args])
-// }
-
-
-
-
-// const root = Zone.current;
-// const string = JSON.stringify
-// const child = root.fork({
-//     name: 'child',
-//     onInvoke: (parentZoneDelegate, currentZone,
-//         targetZone, delegate, applyThis, applyArgs, source)=>{
-//             console.log(`this is child`, 'start');
-//             parentZoneDelegate.invoke(targetZone, delegate, applyThis, applyArgs)
-//             console.log(`this is child`,'end');
-//     },
-//     onScheduleTask: (task)=>{
-//         // console.log('onscheduleTask')
-//         // console.log(task.type,task.data,task.state)
-//     },
-//     onHasTask: (parentZoneDelegate, currentZone, targetZone, hasTaskState)=>{
-//         console.log(`has task ${string(hasTaskState)}`)
-//     }
-// })
-// const event = ()=>{
-//     console.log('user event')
-//     setTimeout(()=>{
-//         console.log('settimeout')
-//     })
-//     Promise.resolve(1).then(v=>console.log(v))
-// }
-// child.scheduleMacroTask(setTimeout(()=>{
-//     console.log(111)
-// }),()=>{
-//     console.log(222)
-// })
-// child.run(child.scheduleMacroTask(setTimeout(()=>{
-//     console.log(111)
-// }),()=>{
-//     console.log(222)
-// }))
+const btn1 = document.getElementById('btn1')
+const btn2 = document.getElementById('btn2')
+const btn3 = document.getElementById('btn3')
 
 const {
     patch,
@@ -53,84 +12,110 @@ const {
     elementClose,
     text,
 } = IncrementalDOM;
+
 function update(data) {
     patch(container, function() {
-        // const moreThan = data.text.length > 8;
-        elementOpen('div', null);
-        // elementVoid('input', null, null,
-        //     'value', data.text,
-        //     'type', 'text',
-        //     'oninput', handleInput,
-        //     'style', {
-        //         'background-color': !moreThan ? '' : 'rgba(255, 0, 0, 0.1)'
-        //     });
-        // elementClose('div');
-        // elementOpen('div', null);
-        // text('text:  ');
+        if (window.count===3) {
+            elementVoid('img',null, null,
+                'src', 'https://angular.cn/assets/images/logos/angular/angular.svg',
+                'style', {
+                    'position': 'absolute',
+                    'top': '400px',
+                    'left': '50vw',
+                    'width': '300px',
+                    'height': '300px',
+                })
+            elementOpen('span', null);
+            text("hello angular!");
+            elementClose('span');
+        }
         elementOpen('strong', null);
         text(data.text);
         elementClose('strong');
-        elementClose('div');
-        //
-        // if (moreThan) {
-        //     text('A string with less than 8 characters');
-        // }
+        for (let item of data.array){
+            elementOpen('li')
+            text(item)
+            elementClose('li')
+        }
     });
 }
-
-// function handleInput(e) {
-//     update({
-//         text: e.target.value,
-//     });
-// }
-
-
 
 const angular = Zone.current
 const initData = 'init'
 
 var a = {
-    text: 1
+    text: 1,
+    array: [1,2,3,4,5]
 }
+
 update(a)
 const child1 = angular.fork({
     name: 'child',
     properties: {
-        ...a
+        ...a,
     },
-    onInvoke: (parentZoneDelegate, currentZone,
-        targetZone, delegate, applyThis, applyArgs, source)=>{
-        // console.log(currentZone._properties)
+    onInvoke: (parentZoneDelegate, currentZone,targetZone, delegate, applyThis, applyArgs, source)=>{
         parentZoneDelegate.invoke(targetZone, delegate, applyThis, applyArgs)
-        // console.log(currentZone._properties)
     },
     onScheduleTask: (parentZoneDelegate, currentZone, targetZone, task)=> {
-        console.log('onScheduleTask')
         currentZone._properties.cache = Object.assign({},currentZone._properties);
-        console.log(currentZone._properties.cache)
+        // ...brefore
         return parentZoneDelegate.scheduleTask(targetZone, task)
     },
     onInvokeTask: (parentZoneDelegate, currentZone, targetZone, task, applyThis, applyArgs)=>{
-        console.log('onInvokeTask')
         parentZoneDelegate.invokeTask(targetZone, task, applyThis, applyArgs)
+        ///..
         if(Object.is(currentZone._properties, currentZone._properties.cache)){
             console.log('not change')
         }else{
             update(currentZone._properties)
             console.log('changed')
         }
-        console.log(currentZone._properties,'end')
+        if(window.change){
+            update(currentZone._properties)
+        }
     }
 })
-const ctx = ()=>{
-    setTimeout(()=>{
-        child1._properties = {text: 2}
-    })
+
+window.count = a.text
+
+
+const add = ()=>{
+    btn1.onclick = ()=>{
+        child1._properties = {...a,text: ++window.count}
+    }
+    // setTimeout(()=>{
+    //     child1._properties = {text: ++window.count}
+    // },2000)
 }
-new Promise((resolve, reject)=>{
-    setTimeout(()=>{
-        resolve()
-    },2000)
-}).then(()=>{
-    child1.run(ctx)
-})
+child1.run(add)
+
+
+
+const Decrease = ()=>{
+    btn2.onclick = ()=>{
+        child1._properties = {...a,text: --window.count}
+    }
+}
+child1.run(Decrease)
+
+
+
+const changeList = ()=>{
+    btn3.onclick= ()=>{
+        window.change = true
+        child1._properties = {...a,array: a.array.map(d=>d*d)}
+    }
+}
+child1.run(changeList)
+
+// btn2.onclick = ()=>{
+//     const ctx = ()=>{
+//         setTimeout(()=>{
+//             child1._properties = {text: --window.count}
+//         })
+//     }
+//     child1.run(ctx)
+//     // var strong = document.getElementsByTagName("strong")[0]
+//     // strong.innerText = --window.count
+// }
